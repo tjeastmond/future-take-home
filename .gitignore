@@ -1,0 +1,38 @@
+# macOS generated files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon files that might be created
+Icon?
+._*
+
+# Editor & IDE files
+.zed/
+.vscode/
+.idea/
+*.iml
+*~
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and outputs
+*.test
+*.out
+
+bin/
+build/
+dist/
+
+# Dependency directories
+vendor/
+
+# Log files
+*.log
+
+.env
