@@ -28,6 +28,7 @@ Icon?
 bin/
 build/
 dist/
+tmp/
 
 # Dependency directories
 vendor/
