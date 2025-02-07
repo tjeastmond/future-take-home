@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -127,18 +126,14 @@ func DeleteAppointment(id int) bool {
 	return false
 }
 
-func GetAppointmentsForTrainer(trainerID string, startTime, endTime time.Time) []models.Appointment {
+func GetAppointmentsForTrainer(trainerID int, startTime, endTime time.Time) []models.Appointment {
 	matchedAppointments := []models.Appointment{}
-	trainerIDInt, err := strconv.Atoi(trainerID)
-	if err != nil {
-		return nil
-	}
 
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	for _, app := range appointments {
-		if app.TrainerID == trainerIDInt &&
+		if app.TrainerID == trainerID &&
 			app.StartedAt.Before(endTime) &&
 			app.EndedAt.After(startTime) {
 			matchedAppointments = append(matchedAppointments, app)
