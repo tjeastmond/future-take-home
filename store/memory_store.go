@@ -4,23 +4,33 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/tjeastmond/future-take-home/models"
 )
 
-var (
-	appointments = make(map[int]models.Appointment)
-	mutex        = &sync.Mutex{}
-	filePath     = "docs/appointments.json"
-)
+type MemoryStore struct {
+	appointments map[int]models.Appointment
+	filePath     string
+	mutex        *sync.Mutex
+	nextID       int
+}
 
-func LoadData() error {
-	mutex.Lock()
-	defer mutex.Unlock()
+func NewMemoryStore(filePath string) *MemoryStore {
+	return &MemoryStore{
+		appointments: make(map[int]models.Appointment),
+		filePath:     filePath,
+		mutex:        &sync.Mutex{},
+	}
+}
 
-	file, err := os.Open(filePath)
+func (ms *MemoryStore) LoadData() error {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
+	file, err := os.Open(ms.filePath)
 	if err != nil {
 		return err
 	}
@@ -33,106 +43,125 @@ func LoadData() error {
 	}
 
 	for _, appointment := range loadedAppointments {
-		appointments[appointment.ID] = appointment
+		ms.appointments[appointment.ID] = appointment
+		if appointment.ID >= ms.nextID {
+			ms.nextID = appointment.ID + 1
+		}
 	}
 
 	return nil
 }
 
-func SaveData() error {
-	mutex.Lock()
-	defer mutex.Unlock()
+func (ms *MemoryStore) SaveData() error {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 
-	file, err := os.Create(filePath)
+	file, err := os.Create(ms.filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
 	var appointmentsList []models.Appointment
-	for _, app := range appointments {
+	for _, app := range ms.appointments {
 		appointmentsList = append(appointmentsList, app)
 	}
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(appointmentsList); err != nil {
-		return err
-	}
-
-	return nil
+	return encoder.Encode(appointmentsList)
 }
 
-func persistData() {
-	if err := SaveData(); err != nil {
+func (ms *MemoryStore) SortedAppointments() []models.Appointment {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
+	keys := make([]int, 0, len(ms.appointments))
+	for k := range ms.appointments {
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return ms.appointments[keys[i]].StartedAt.Before(ms.appointments[keys[j]].StartedAt)
+	})
+
+	var sortedAppointments []models.Appointment
+	for _, k := range keys {
+		sortedAppointments = append(sortedAppointments, ms.appointments[k])
+	}
+
+	return sortedAppointments
+}
+
+func (ms *MemoryStore) PersistDataAsync() {
+	if err := ms.SaveData(); err != nil {
 		log.Printf("Error saving data: %v", err)
 	}
 }
 
-func AddAppointment(a models.Appointment) int {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	// this is fine for a small in-memory store
-	appointments[a.ID] = a
-	persistData()
-
-	return a.ID
-}
-
-// GetAllAppointments returns all appointments
-func GetAllAppointments() []models.Appointment {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	var allAppointments []models.Appointment
-	for _, app := range appointments {
-		allAppointments = append(allAppointments, app)
+func (ms *MemoryStore) AddAppointment(a models.Appointment) (int, error) {
+	if err := a.Validate(); err != nil {
+		return 0, err
 	}
-	return allAppointments
+
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
+	a.ID = ms.nextID
+	ms.appointments[a.ID] = a
+	ms.nextID++
+
+	go ms.PersistDataAsync()
+	return a.ID, nil
 }
 
-func GetAppointmentByID(id int) (models.Appointment, bool) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	appointment, exists := appointments[id]
+func (ms *MemoryStore) GetAllAppointments() []models.Appointment {
+	return ms.SortedAppointments()
+}
+
+func (ms *MemoryStore) GetAppointmentByID(id int) (models.Appointment, bool) {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+	appointment, exists := ms.appointments[id]
 	return appointment, exists
 }
 
-func UpdateAppointment(id int, a models.Appointment) bool {
-	mutex.Lock()
-	defer mutex.Unlock()
+func (ms *MemoryStore) UpdateAppointment(id int, a models.Appointment) bool {
+	if err := a.Validate(); err != nil {
+		return false
+	}
 
-	if _, exists := appointments[id]; exists {
-		appointments[id] = a
-		persistData()
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
+	if _, exists := ms.appointments[id]; exists {
+		ms.appointments[id] = a
+		ms.PersistDataAsync()
 		return true
 	}
 
 	return false
 }
 
-// DeleteAppointment deletes an appointment by ID
-func DeleteAppointment(id int) bool {
-	mutex.Lock()
-	defer mutex.Unlock()
+func (ms *MemoryStore) DeleteAppointment(id int) bool {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 
-	if _, exists := appointments[id]; exists {
-		delete(appointments, id)
-		persistData()
+	if _, exists := ms.appointments[id]; exists {
+		delete(ms.appointments, id)
+		ms.PersistDataAsync()
 		return true
 	}
 
 	return false
 }
 
-func GetAppointmentsForTrainer(trainerID int, startTime, endTime time.Time) []models.Appointment {
+func (ms *MemoryStore) GetAppointmentsForTrainer(trainerID int, startTime, endTime time.Time) []models.Appointment {
 	matchedAppointments := []models.Appointment{}
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	for _, app := range appointments {
+	for _, app := range ms.appointments {
 		if app.TrainerID == trainerID &&
 			app.StartedAt.Before(endTime) &&
 			app.EndedAt.After(startTime) {
@@ -141,4 +170,42 @@ func GetAppointmentsForTrainer(trainerID int, startTime, endTime time.Time) []mo
 	}
 
 	return matchedAppointments
+}
+
+func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime time.Time) []string {
+	appointments := ms.GetAppointmentsForTrainer(trainerID, startTime, endTime)
+
+	availableSlots := []string{}
+	for t := startTime; t.Before(endTime); t = t.Add(30 * time.Minute) {
+		if t.Minute() != 0 && t.Minute() != 30 {
+			continue
+		}
+
+		slotTaken := false
+		for _, app := range appointments {
+			if t.Before(app.EndedAt) && t.Add(30*time.Minute).After(app.StartedAt) {
+				slotTaken = true
+				break
+			}
+		}
+
+		if !slotTaken {
+			availableSlots = append(availableSlots, t.Format(time.RFC3339))
+		}
+	}
+
+	return availableSlots
+}
+
+func (ms *MemoryStore) IsAvailable(appointment models.Appointment) bool {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
+	for _, app := range ms.appointments {
+		if app.TrainerID == appointment.TrainerID && appointment.StartedAt == app.StartedAt {
+			return false
+		}
+	}
+
+	return true
 }

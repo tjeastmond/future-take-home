@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -9,13 +10,14 @@ import (
 )
 
 func main() {
-	if err := store.LoadData(); err != nil {
-		log.Printf("Warning: Failed to load data from file: %v", err)
+	ms := store.NewMemoryStore("./store/appointments.json")
+	err := ms.LoadData()
+	if err != nil {
+		fmt.Printf("Error loading data: %v\n", err)
 	}
-
 	router := gin.Default()
 
-	routes.InitializeRoutes(router)
+	routes.InitializeRoutes(router, ms)
 
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
