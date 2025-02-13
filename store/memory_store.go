@@ -2,19 +2,20 @@ package store
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"os"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/tjeastmond/future-take-home/models"
+	"github.com/tjeastmond/future-take-home/utils"
 )
 
 type MemoryStore struct {
 	appointments map[int]models.Appointment
 	filePath     string
-	mutex        *sync.Mutex
+	mutex        sync.RWMutex
 	nextID       int
 }
 
@@ -22,7 +23,7 @@ func NewMemoryStore(filePath string) *MemoryStore {
 	return &MemoryStore{
 		appointments: make(map[int]models.Appointment),
 		filePath:     filePath,
-		mutex:        &sync.Mutex{},
+		mutex:        sync.RWMutex{},
 	}
 }
 
@@ -52,51 +53,24 @@ func (ms *MemoryStore) LoadData() error {
 	return nil
 }
 
-func (ms *MemoryStore) SaveData() error {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
-	file, err := os.Create(ms.filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	var appointmentsList []models.Appointment
-	for _, app := range ms.appointments {
-		appointmentsList = append(appointmentsList, app)
-	}
-
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(appointmentsList)
+func (ms *MemoryStore) SortAppointmentsByID(appointments []models.Appointment) {
+	sort.SliceStable(appointments, func(i, j int) bool {
+		return appointments[i].ID < appointments[j].ID
+	})
 }
 
 func (ms *MemoryStore) SortedAppointments() []models.Appointment {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
+	ms.mutex.RLock()
+	defer ms.mutex.RUnlock()
 
-	keys := make([]int, 0, len(ms.appointments))
-	for k := range ms.appointments {
-		keys = append(keys, k)
+	appointments := make([]models.Appointment, 0, len(ms.appointments))
+	for _, appointment := range ms.appointments {
+		appointments = append(appointments, appointment)
 	}
 
-	sort.Slice(keys, func(i, j int) bool {
-		return ms.appointments[keys[i]].StartsAt.Before(ms.appointments[keys[j]].StartsAt)
-	})
+	ms.SortAppointmentsByID(appointments)
 
-	var sortedAppointments []models.Appointment
-	for _, k := range keys {
-		sortedAppointments = append(sortedAppointments, ms.appointments[k])
-	}
-
-	return sortedAppointments
-}
-
-func (ms *MemoryStore) PersistDataAsync() {
-	if err := ms.SaveData(); err != nil {
-		log.Printf("Error saving data: %v", err)
-	}
+	return appointments
 }
 
 func (ms *MemoryStore) AddAppointment(a models.Appointment) (int, error) {
@@ -105,13 +79,11 @@ func (ms *MemoryStore) AddAppointment(a models.Appointment) (int, error) {
 	}
 
 	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
 	a.ID = ms.nextID
 	ms.appointments[a.ID] = a
 	ms.nextID++
+	ms.mutex.Unlock()
 
-	go ms.PersistDataAsync()
 	return a.ID, nil
 }
 
@@ -120,49 +92,61 @@ func (ms *MemoryStore) GetAllAppointments() []models.Appointment {
 }
 
 func (ms *MemoryStore) GetAppointmentByID(id int) (models.Appointment, bool) {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
+	ms.mutex.RLock()
+	defer ms.mutex.RUnlock()
 	appointment, exists := ms.appointments[id]
 	return appointment, exists
 }
 
-func (ms *MemoryStore) DeleteAppointment(id int) bool {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
-	if _, exists := ms.appointments[id]; exists {
-		delete(ms.appointments, id)
-		ms.PersistDataAsync()
-		return true
-	}
-
-	return false
-}
-
-func (ms *MemoryStore) GetAppointmentsForTrainer(trainerID int, startTime, endTime time.Time) []models.Appointment {
-	matchedAppointments := []models.Appointment{}
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
+func (ms *MemoryStore) GetAllAppointmentsForTrainer(trainerID int) []models.Appointment {
+	trainerAppointments := []models.Appointment{}
 	for _, app := range ms.appointments {
-		if app.TrainerID == trainerID &&
-			app.StartsAt.Before(endTime) &&
-			app.EndsAt.After(startTime) {
-			matchedAppointments = append(matchedAppointments, app)
+		if app.TrainerID == trainerID {
+			trainerAppointments = append(trainerAppointments, app)
 		}
 	}
+
+	ms.SortAppointmentsByID(trainerAppointments)
+
+	return trainerAppointments
+}
+
+func (ms *MemoryStore) GetAppointmentsForTrainer(trainerID int, startTime, endTime *time.Time) []models.Appointment {
+	ms.mutex.RLock()
+	defer ms.mutex.RUnlock()
+
+	matchedAppointments := []models.Appointment{}
+	for _, app := range ms.appointments {
+		if app.TrainerID == trainerID {
+			if startTime != nil && endTime != nil {
+				if app.StartsAt.Before(*endTime) && app.EndsAt.After(*startTime) {
+					matchedAppointments = append(matchedAppointments, app)
+				}
+			} else {
+				matchedAppointments = append(matchedAppointments, app)
+			}
+		}
+	}
+
+	ms.SortAppointmentsByID(matchedAppointments)
 
 	return matchedAppointments
 }
 
-func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime time.Time) []string {
+func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime *time.Time) []string {
 	appointments := ms.GetAppointmentsForTrainer(trainerID, startTime, endTime)
 
 	availableSlots := []string{}
-	for t := startTime; t.Before(endTime); t = t.Add(30 * time.Minute) {
+	for t := *startTime; t.Before(*endTime); t = t.Add(30 * time.Minute) {
+		if !utils.IsValidTime(t) {
+			continue
+		}
+
 		if t.Minute() != 0 && t.Minute() != 30 {
 			continue
 		}
+
+		fmt.Println(t, utils.IsValidTime(t))
 
 		slotTaken := false
 		for _, app := range appointments {

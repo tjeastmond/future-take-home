@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tjeastmond/future-take-home/models"
 	"github.com/tjeastmond/future-take-home/store"
+	"github.com/tjeastmond/future-take-home/utils"
 )
 
 type RouteHandler struct {
@@ -42,7 +43,7 @@ func (h *RouteHandler) getAppointment(c *gin.Context) {
 }
 
 func (h *RouteHandler) getAppointments(c *gin.Context) {
-	c.JSON(http.StatusOK, h.store.GetAllAppointments())
+	c.JSON(http.StatusOK, h.store.SortedAppointments())
 }
 
 func (h *RouteHandler) createAppointment(c *gin.Context) {
@@ -56,8 +57,8 @@ func (h *RouteHandler) createAppointment(c *gin.Context) {
 		errorMessage = err.Error()
 	}
 
-	if !isValidTime(newAppointment.StartsAt) {
-		errorMessage = "Appointments must be scheduled between 8:00 AM and 5:00 PM, Monday through Friday, in 30-minute increments."
+	if !utils.IsValidTime(newAppointment.StartsAt) {
+		errorMessage = "Invalid time params"
 	}
 
 	if !h.store.IsAvailable(newAppointment) {
@@ -100,21 +101,18 @@ func (h *RouteHandler) getTrainerAvailability(c *gin.Context) {
 }
 
 func (h *RouteHandler) getTrainerAppointments(c *gin.Context) {
-	err, trainerID, startTime, endTime := getTrainerIdAndDates(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request params"})
-		return
-	}
+	// err, trainerID, startTime, endTime := getTrainerIdAndDates(c)
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request params"})
+	// 	return
+	// }
 
-	appointments := h.store.GetAppointmentsForTrainer(trainerID, startTime, endTime)
+	trainerID, _ := c.Get("id")
+	appointments := h.store.GetAllAppointmentsForTrainer(trainerID.(int))
 
 	c.JSON(http.StatusOK, gin.H{
 		"trainer_id":   trainerID,
 		"appointments": appointments,
-		"dates": gin.H{
-			"start_date": startTime,
-			"end_date":   endTime,
-		},
 	})
 }
 
@@ -123,7 +121,6 @@ func InitializeRoutes(router *gin.Engine, ms *store.MemoryStore) {
 	appointments := router.Group("/appointments")
 	{
 		appointments.GET("/", handler.getAppointments)
-		appointments.POST("/", handler.createAppointment)
 		appointments.GET("/:id", handler.IDExtractor, handler.getAppointment)
 	}
 
@@ -137,41 +134,23 @@ func InitializeRoutes(router *gin.Engine, ms *store.MemoryStore) {
 }
 
 // Utility Functions
-func getTrainerIdAndDates(c *gin.Context) (error, int, time.Time, time.Time) {
-	_, start, end := getTodaysStartAndEnd()
+func getTrainerIdAndDates(c *gin.Context) (error, int, *time.Time, *time.Time) {
+	// _, start, end := getTodaysStartAndEnd()
 	trainerID, _ := c.Get("id")
-
-	// default to today's date
-	startDate := c.DefaultQuery("starts_at", start.Format(time.RFC3339))
-	endDate := c.DefaultQuery("ends_at", end.Format(time.RFC3339))
+	startDate := c.DefaultQuery("starts_at", "")
+	endDate := c.DefaultQuery("ends_at", "")
 
 	startTime, err := time.Parse(time.RFC3339, startDate)
-	if err != nil {
-		return err, 0, time.Time{}, time.Time{}
+	if startDate != "" && err != nil {
+		return err, 0, nil, nil
 	}
 
 	endTime, err := time.Parse(time.RFC3339, endDate)
-	if err != nil {
-		return err, 0, time.Time{}, time.Time{}
+	if endDate != "" && err != nil {
+		return err, 0, nil, nil
 	}
 
-	return nil, trainerID.(int), startTime, endTime
-}
-
-func isValidTime(t time.Time) bool {
-	_, offset := t.Zone()
-	if offset != -8*3600 {
-		return false
-	}
-
-	hours := t.Hour()
-	minutes := t.Minute()
-	weekday := t.Weekday()
-
-	return (minutes == 0 || minutes == 30) &&
-		hours >= 8 && hours < 17 &&
-		weekday != time.Saturday &&
-		weekday != time.Sunday
+	return nil, trainerID.(int), &startTime, &endTime
 }
 
 func getTodaysStartAndEnd() (error, time.Time, time.Time) {
