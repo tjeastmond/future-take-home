@@ -82,7 +82,7 @@ func (ms *MemoryStore) SortedAppointments() []models.Appointment {
 	}
 
 	sort.Slice(keys, func(i, j int) bool {
-		return ms.appointments[keys[i]].StartedAt.Before(ms.appointments[keys[j]].StartedAt)
+		return ms.appointments[keys[i]].StartsAt.Before(ms.appointments[keys[j]].StartsAt)
 	})
 
 	var sortedAppointments []models.Appointment
@@ -146,8 +146,8 @@ func (ms *MemoryStore) GetAppointmentsForTrainer(trainerID int, startTime, endTi
 
 	for _, app := range ms.appointments {
 		if app.TrainerID == trainerID &&
-			app.StartedAt.Before(endTime) &&
-			app.EndedAt.After(startTime) {
+			app.StartsAt.Before(endTime) &&
+			app.EndsAt.After(startTime) {
 			matchedAppointments = append(matchedAppointments, app)
 		}
 	}
@@ -166,7 +166,7 @@ func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime 
 
 		slotTaken := false
 		for _, app := range appointments {
-			if t.Before(app.EndedAt) && t.Add(30*time.Minute).After(app.StartedAt) {
+			if t.Before(app.EndsAt) && t.Add(30*time.Minute).After(app.StartsAt) {
 				slotTaken = true
 				break
 			}
@@ -185,7 +185,7 @@ func (ms *MemoryStore) IsAvailable(appointment models.Appointment) bool {
 	defer ms.mutex.Unlock()
 
 	for _, app := range ms.appointments {
-		if app.TrainerID == appointment.TrainerID && appointment.StartedAt == app.StartedAt {
+		if app.TrainerID == appointment.TrainerID && appointment.StartsAt == app.StartsAt {
 			return false
 		}
 	}
