@@ -126,23 +126,6 @@ func (ms *MemoryStore) GetAppointmentByID(id int) (models.Appointment, bool) {
 	return appointment, exists
 }
 
-func (ms *MemoryStore) UpdateAppointment(id int, a models.Appointment) bool {
-	if err := a.Validate(); err != nil {
-		return false
-	}
-
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
-	if _, exists := ms.appointments[id]; exists {
-		ms.appointments[id] = a
-		ms.PersistDataAsync()
-		return true
-	}
-
-	return false
-}
-
 func (ms *MemoryStore) DeleteAppointment(id int) bool {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
