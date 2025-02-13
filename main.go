@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	ms := store.NewMemoryStore("./store/appointments.json")
+	ms := store.NewMemoryStore("./data/appointments.json")
 	err := ms.LoadData()
 	if err != nil {
 		fmt.Printf("Error loading data: %v\n", err)

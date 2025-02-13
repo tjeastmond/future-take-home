@@ -9,31 +9,31 @@ type Appointment struct {
 	ID        int       `json:"id"`
 	UserID    int       `json:"user_id" binding:"required"`
 	TrainerID int       `json:"trainer_id" binding:"required"`
-	StartedAt time.Time `json:"started_at" binding:"required"`
-	EndedAt   time.Time `json:"ended_at"`
+	StartsAt  time.Time `json:"starts_at" binding:"required"`
+	EndsAt    time.Time `json:"ends_at"`
 }
 
 func (a *Appointment) Validate() error {
-	if a.StartedAt.IsZero() {
+	if a.StartsAt.IsZero() {
 		return errors.New("started_at cannot be zero")
 	}
 
-	if a.EndedAt.IsZero() {
+	if a.EndsAt.IsZero() {
 		return errors.New("ended_at cannot be zero")
 	}
 
-	if a.EndedAt.Before(a.StartedAt) {
+	if a.EndsAt.Before(a.StartsAt) {
 		return errors.New("ended_at must be after started_at")
 	}
 	return nil
 }
 
-func NewAppointment(userID, trainerID int, startedAt, endedAt time.Time) (*Appointment, error) {
+func NewAppointment(userID, trainerID int, startsAt, endsAt time.Time) (*Appointment, error) {
 	appointment := &Appointment{
 		UserID:    userID,
 		TrainerID: trainerID,
-		StartedAt: startedAt,
-		EndedAt:   endedAt,
+		StartsAt:  startsAt,
+		EndsAt:    endsAt,
 	}
 
 	if err := appointment.Validate(); err != nil {

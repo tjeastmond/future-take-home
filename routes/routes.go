@@ -20,8 +20,8 @@ func NewRouteHandler(ms *store.MemoryStore) *RouteHandler {
 }
 
 func (h *RouteHandler) IDExtractor(c *gin.Context) {
-	paramId := c.Param("id")
-	id, err := strconv.Atoi(paramId)
+	paramID := c.Param("id")
+	id, err := strconv.Atoi(paramID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
 		c.Abort()
@@ -47,14 +47,17 @@ func (h *RouteHandler) getAppointments(c *gin.Context) {
 
 func (h *RouteHandler) createAppointment(c *gin.Context) {
 	var newAppointment models.Appointment
+	trainerID, _ := c.Get("id")
+	newAppointment.TrainerID = trainerID.(int)
+
 	errorMessage := ""
 
 	if err := c.ShouldBindJSON(&newAppointment); err != nil {
 		errorMessage = err.Error()
 	}
 
-	if !isValidTime(newAppointment.StartedAt) {
-		errorMessage = "appointment time. Must be :00 or :30 PST."
+	if !isValidTime(newAppointment.StartsAt) {
+		errorMessage = "Appointments must be scheduled between 8:00 AM and 5:00 PM, Monday through Friday, in 30-minute increments."
 	}
 
 	if !h.store.IsAvailable(newAppointment) {
@@ -66,7 +69,7 @@ func (h *RouteHandler) createAppointment(c *gin.Context) {
 		return
 	}
 
-	newAppointment.EndedAt = newAppointment.StartedAt.Add(30 * time.Minute)
+	newAppointment.EndsAt = newAppointment.StartsAt.Add(30 * time.Minute)
 	appointmentID, err := h.store.AddAppointment(newAppointment)
 
 	if err != nil {
@@ -75,31 +78,6 @@ func (h *RouteHandler) createAppointment(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"id": appointmentID})
-}
-
-func (h *RouteHandler) updateAppointment(c *gin.Context) {
-	id, _ := c.Get("id")
-	var updatedAppointment models.Appointment
-	if err := c.ShouldBindJSON(&updatedAppointment); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if success := h.store.UpdateAppointment(id.(int), updatedAppointment); !success {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Appointment not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, updatedAppointment)
-}
-
-func (h *RouteHandler) deleteAppointment(c *gin.Context) {
-	id, _ := c.Get("id")
-	if success := h.store.DeleteAppointment(id.(int)); !success {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Appointment not found"})
-		return
-	}
-	c.JSON(http.StatusNoContent, nil)
 }
 
 func (h *RouteHandler) getTrainerAvailability(c *gin.Context) {
@@ -147,26 +125,25 @@ func InitializeRoutes(router *gin.Engine, ms *store.MemoryStore) {
 		appointments.GET("/", handler.getAppointments)
 		appointments.POST("/", handler.createAppointment)
 		appointments.GET("/:id", handler.IDExtractor, handler.getAppointment)
-		appointments.PUT("/:id", handler.IDExtractor, handler.updateAppointment)
-		appointments.DELETE("/:id", handler.IDExtractor, handler.deleteAppointment)
 	}
 
 	trainers := router.Group("/trainers")
 	{
+		// these endpoints satisfy the requirements for the assignment
 		trainers.GET("/:id/availability", handler.IDExtractor, handler.getTrainerAvailability)
 		trainers.GET("/:id/appointments", handler.IDExtractor, handler.getTrainerAppointments)
+		trainers.POST("/:id/appointments", handler.IDExtractor, handler.createAppointment)
 	}
 }
 
 // Utility Functions
-
 func getTrainerIdAndDates(c *gin.Context) (error, int, time.Time, time.Time) {
 	_, start, end := getTodaysStartAndEnd()
 	trainerID, _ := c.Get("id")
 
 	// default to today's date
-	startDate := c.DefaultQuery("start_date", start.Format(time.RFC3339))
-	endDate := c.DefaultQuery("end_date", end.Format(time.RFC3339))
+	startDate := c.DefaultQuery("starts_at", start.Format(time.RFC3339))
+	endDate := c.DefaultQuery("ends_at", end.Format(time.RFC3339))
 
 	startTime, err := time.Parse(time.RFC3339, startDate)
 	if err != nil {
