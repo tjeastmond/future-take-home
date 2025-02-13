@@ -2,7 +2,6 @@ package store
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"sort"
 	"sync"
@@ -145,8 +144,6 @@ func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime 
 		if t.Minute() != 0 && t.Minute() != 30 {
 			continue
 		}
-
-		fmt.Println(t, utils.IsValidTime(t))
 
 		slotTaken := false
 		for _, app := range appointments {
