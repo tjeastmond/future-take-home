@@ -1,6 +1,8 @@
 package utils
 
-import "time"
+import (
+	"time"
+)
 
 func IsValidTime(t time.Time) bool {
 	_, offset := t.Zone()
@@ -16,4 +18,8 @@ func IsValidTime(t time.Time) bool {
 		hours >= 8 && hours < 17 &&
 		weekday != time.Saturday &&
 		weekday != time.Sunday
+}
+
+func IsValidTimes(startTime, endTime *time.Time) bool {
+	return IsValidTime(*startTime) && IsValidTime(*endTime)
 }
