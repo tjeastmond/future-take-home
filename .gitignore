@@ -25,7 +25,6 @@ Icon?
 *.test
 *.out
 
-bin/
 build/
 dist/
 tmp/
