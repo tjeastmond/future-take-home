@@ -10,7 +10,7 @@ type Appointment struct {
 	UserID    int       `json:"user_id" binding:"required"`
 	TrainerID int       `json:"trainer_id" binding:"required"`
 	StartsAt  time.Time `json:"starts_at" binding:"required"`
-	EndsAt    time.Time `json:"ends_at"`
+	EndsAt    time.Time `json:"ends_at" binding:"required"`
 }
 
 func (a *Appointment) Validate() error {

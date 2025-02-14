@@ -51,30 +51,25 @@ func (h *RouteHandler) createAppointment(c *gin.Context) {
 	trainerID, _ := c.Get("id")
 	newAppointment.TrainerID = trainerID.(int)
 
-	errorMessage := ""
-
 	if err := c.ShouldBindJSON(&newAppointment); err != nil {
-		errorMessage = err.Error()
-	}
-
-	if !utils.IsValidTime(newAppointment.StartsAt) {
-		errorMessage = "Invalid time params"
-	}
-
-	if !h.store.IsAvailable(newAppointment) {
-		errorMessage = "That time is already booked. Please select another time."
-	}
-
-	if errorMessage != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	newAppointment.EndsAt = newAppointment.StartsAt.Add(30 * time.Minute)
+	if !utils.IsValidTime(newAppointment.StartsAt) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid time params"})
+		return
+	}
+
+	if !h.store.IsAvailable(newAppointment) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "That time is already booked. Please select another time."})
+		return
+	}
+
 	appointmentID, err := h.store.AddAppointment(newAppointment)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating appointment"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -101,12 +96,6 @@ func (h *RouteHandler) getTrainerAvailability(c *gin.Context) {
 }
 
 func (h *RouteHandler) getTrainerAppointments(c *gin.Context) {
-	// err, trainerID, startTime, endTime := getTrainerIdAndDates(c)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request params"})
-	// 	return
-	// }
-
 	trainerID, _ := c.Get("id")
 	appointments := h.store.GetAllAppointmentsForTrainer(trainerID.(int))
 

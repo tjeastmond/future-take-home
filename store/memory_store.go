@@ -134,7 +134,6 @@ func (ms *MemoryStore) GetAppointmentsForTrainer(trainerID int, startTime, endTi
 
 func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime *time.Time) []string {
 	appointments := ms.GetAppointmentsForTrainer(trainerID, startTime, endTime)
-
 	availableSlots := []string{}
 	for t := *startTime; t.Before(*endTime); t = t.Add(30 * time.Minute) {
 		if !utils.IsValidTime(t) {
@@ -162,12 +161,20 @@ func (ms *MemoryStore) GetTrainerAvailability(trainerID int, startTime, endTime 
 }
 
 func (ms *MemoryStore) IsAvailable(appointment models.Appointment) bool {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
+	ms.mutex.RLock()
+	defer ms.mutex.RUnlock()
 
 	for _, app := range ms.appointments {
-		if app.TrainerID == appointment.TrainerID && appointment.StartsAt == app.StartsAt {
-			return false
+		if app.TrainerID == appointment.TrainerID {
+			// check if there is an exact match for start and end times
+			if appointment.StartsAt.Equal(app.StartsAt) && appointment.EndsAt.Equal(app.EndsAt) {
+				return false
+			}
+
+			// check for overlapping times
+			if appointment.StartsAt.Before(app.EndsAt) && appointment.EndsAt.After(app.StartsAt) {
+				return false
+			}
 		}
 	}
 
