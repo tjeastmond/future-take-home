@@ -4,99 +4,67 @@
 
 This project is designed to create a simple appointment scheduling API using Go and the Gin web framework. It allows users to manage appointments with trainers, check availability, and retrieve existing appointments.
 
-## Project Structure
+## Requirements
 
-The project is organized as follows:
+You must have a modern version of Docker installed on your machine to run this project. You can download Docker [here](https://www.docker.com/products/docker-desktop).
 
-- `README.md`: This file provides an overview and documentation for the project.
-- `.air.toml`: Configuration file for [Air](https://github.com/cosmtrek/air), a live reloading tool for Go applications. It specifies build and watch configurations.
-- `.editorconfig`: Defines coding styles to maintain consistency across different editors and IDEs.
-- `.gitignore`: Specifies files and directories that should be ignored by Git, such as temporary files and build artifacts.
-- `bin/test_api.sh`: A shell script for testing the API endpoints using curl commands.
-- `data/appointments.json`: Sample data file containing a list of appointments used to pre-load the application.
-- `docker-compose.yml`: Defines the service configuration for Docker to run the application in a containerized environment.
-- `go.mod` and `go.sum`: Go modules files that manage dependencies required by the project.
-- `main.go`: The entry point of the application where the HTTP server is set up and routes are registered.
-- `models/appointments.go`: Contains the `Appointment` struct and validation logic for appointments.
-- `routes/routes.go`: Defines the API routes and their corresponding handler functions for managing appointments.
-- `store/memory_store.go`: In-memory data store for appointments, handling loading, retrieving, and adding appointments.
-- `utils/utils.go`: Contains utility functions for validating times.
+Personally, I use OrbStache to manage my Docker containers. You can download OrbStache [here](https://orbstache.io).
 
-## Getting Started
+## Getting Started - Docker
 
-### Prerequisites
+To get started with this project, you must first clone the repository to your local machine. You can do this by running the following command in your terminal:
 
-- Go (1.23 or higher) installed on your machine.
-- Docker (optional) for running in a containerized environment.
+```sh
+docker-compose up -d
+```
 
-### Running the Application
+When you are done with the project, you can stop and remove the containers by running the following command:
 
-1. **Clone the Repository**:
+```sh
+docker-compose down -v
+```
 
-   ```sh
-   git clone <repository-url>
-   cd <repository-directory>
-   ```
+The data should persist if you decide to start or stop the containers.
 
-2. **Install Dependencies**:
-   Navigate to the project directory and run:
+```sh
+docker-compose start
+docker-compose stop
+```
 
-   ```sh
-   go mod download
-   ```
+## API Endpoints
 
-3. **Using Docker**:
-   If you prefer running the application with Docker, execute:
+The following endpoints are available for use:
 
-   ```sh
-   docker-compose up --build
-   ```
+- `GET /trainers/1` - will return a list of appointmenrts for trainer 1
+- `GET /trainers/1/availability` - will return a list of available times for trainer 1
+- `POST /trainers/1` - will create a new appointment for trainer 1
 
-   This command will build the Docker image and start the container.
+Below are some examples of how to use these endpoints:
 
-4. **Run the Application**:
-   If running locally without Docker, you can start the application with:
-   ```sh
-   go run main.go
-   ```
-   The application will start and listen on `http://localhost:8080`.
+```sh
+# Get a list of appointments for trainer 1
+curl -X GET 'localhost:8080/trainers/1' \
+  --url-query 'trainer_id=1'
 
-### API Endpoints
+# Get a list of available times for trainer 1
+curl -X GET 'localhost:8080/trainers/1/availability' \
+  --url-query 'starts_at=2025-02-19T08:00:00-08:00' \
+  --url-query 'ends_at=2025-02-20T08:00:00-08:00'
 
-The following API endpoints are available:
+# Create a new appointment for trainer 1
+curl -X POST 'localhost:8080/trainers/1' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
+  "trainer_id": 1,
+  "user_id": 1,
+  "starts_at": "2025-02-19T14:00:00-08:00",
+  "ends_at": "2025-02-19T14:30:00-08:00"
+}'
+```
 
-- **GET** `/appointments`: Retrieve all appointments.
-- **GET** `/appointments/:id`: Retrieve a specific appointment by ID.
-- **GET** `/trainers/:id/availability?starts_at=<timestamp>&ends_at=<timestamp>`: Get availability for a trainer within the specified time range.
-- **GET** `/trainers/:id/appointments`: Get all appointments for a specific trainer.
-- **POST** `/trainers/:id/appointments`: Create a new appointment for a specific trainer (requires JSON body).
+## Testing and Notes
 
-### Testing the API
-
-You can test the API using the provided `bin/test_api.sh` script.
-
-1. **Make it executable**:
-
-   ```sh
-   chmod +x bin/test_api.sh
-   ```
-
-2. **Run the test script**:
-   ```sh
-   ./bin/test_api.sh
-   ```
-
-The script will perform various GET and POST requests against the API and display the responses.
-
-### Logging
-
-Errors and build messages are logged in `build-errors.log`.
-
-### Notes
-
-- Ensure the timestamps used in the API requests follow the format specified in the API documentation (RFC3339).
-- The application uses an in-memory store for appointments, which means data will not persist across application restarts.
-
-## License
-
-This project is licensed under the MIT License. See the `LICENSE` file for more information.
+- I didn't have time to write tests for this project
+- I took a little longer than the suggested 3 or so hours to complete this project after the request to use Postgres
+- I didn't use an ORM because I was nearly done when the Posrgres request came in and I'm a little rust with Gorn
+- I didn't create a table or check for valid trainer IDs
