@@ -8,11 +8,11 @@ This project is designed to create a simple appointment scheduling API using Go 
 
 You must have a modern version of Docker installed on your machine to run this project. You can download Docker [here](https://www.docker.com/products/docker-desktop).
 
-Personally, I use OrbStache to manage my Docker containers. You can download OrbStache [here](https://orbstache.io).
+I use OrbStache to manage my Docker containers. You can download OrbStack [here](https://orbstack.io).
 
 ## Getting Started - Docker
 
-To get started with this project, you must first clone the repository to your local machine. You can do this by running the following command in your terminal:
+To start this project, you must first clone the repository to your local machine. You can do this by running the following command in your terminal:
 
 ```sh
 docker-compose up -d
@@ -35,7 +35,7 @@ docker-compose stop
 
 The following endpoints are available for use:
 
-- `GET /trainers/1` - will return a list of appointmenrts for trainer 1
+- `GET /trainers/1` - will return a list of appointments for trainer 1
 - `GET /trainers/1/availability` - will return a list of available times for trainer 1
 - `POST /trainers/1` - will create a new appointment for trainer 1
 
@@ -66,5 +66,5 @@ curl -X POST 'localhost:8080/trainers/1' \
 
 - I didn't have time to write tests for this project
 - I took a little longer than the suggested 3 or so hours to complete this project after the request to use Postgres
-- I didn't use an ORM because I was nearly done when the Posrgres request came in and I'm a little rust with Gorn
+- I didn't use an ORM because I was nearly done when the Posrgres request came in and I'm a little rusty with Gorn
 - I didn't create a table or check for valid trainer IDs
