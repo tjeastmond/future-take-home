@@ -28,6 +28,7 @@ Icon?
 build/
 dist/
 tmp/
+db-data/
 
 # Dependency directories
 vendor/
