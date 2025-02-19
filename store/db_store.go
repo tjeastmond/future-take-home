@@ -1,21 +1,25 @@
 package store
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
 
 const DB_URL = "postgres://bob:belcher@postgres:5432/future_appointments?sslmode=disable"
 
-var db *sql.DB
+var db *sqlx.DB
 
-func Connect() {
+type Store struct {
+	Appointments *Appointments
+}
+
+func Connect() *sqlx.DB {
 	var err error
 
-	db, err = sql.Open("postgres", DB_URL)
+	db, err = sqlx.Open("postgres", DB_URL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,6 +29,8 @@ func Connect() {
 		fmt.Println("Ping failed")
 		log.Fatal(err)
 	}
+
+	return db
 }
 
 func CloseDB() {
@@ -33,8 +39,4 @@ func CloseDB() {
 			log.Fatal(err)
 		}
 	}
-}
-
-func GetDB() *sql.DB {
-	return db
 }
